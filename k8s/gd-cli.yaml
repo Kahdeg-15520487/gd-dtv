@@ -1,0 +1,109 @@
+# Google Drive archive web server — search + OPDS + download
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: gd-cli
+  namespace: gd-cli
+  labels:
+    app: gd-cli
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: gd-cli
+  template:
+    metadata:
+      labels:
+        app: gd-cli
+    spec:
+      containers:
+      - name: gd-cli
+        image: ghcr.io/kahdeg-15520487/gd-dtv:latest
+        command:
+        - sh
+        - -c
+        - |
+          mkdir -p /home/node/.config/rclone /home/node/.gdrive-cli
+          cp /secrets/rclone.conf /home/node/.config/rclone/rclone.conf
+          cp /secrets/gdrive-config.json /home/node/.gdrive-cli/config.json
+          exec node /app/dist/web/server.js
+        ports:
+        - containerPort: 3000
+        env:
+        - name: HOME
+          value: /home/node
+        - name: DB_HOST
+          value: postgres.postgres.svc.homelab.cluster
+        - name: DB_PORT
+          value: "5432"
+        - name: DB_NAME
+          value: gdrive
+        - name: DB_USER
+          value: postgres
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: password
+        resources:
+          requests:
+            cpu: 10m
+            memory: 64Mi
+          limits:
+            cpu: 500m
+            memory: 1Gi
+        volumeMounts:
+        - name: rclone-secret
+          mountPath: /secrets/rclone.conf
+          subPath: rclone.conf
+        - name: gdrive-secret
+          mountPath: /secrets/gdrive-config.json
+          subPath: config.json
+        - name: gdrive-tmp
+          mountPath: /tmp/gdrive
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: rclone-secret
+        secret:
+          secretName: rclone-config
+          defaultMode: 0444
+      - name: gdrive-secret
+        secret:
+          secretName: gdrive-config
+          defaultMode: 0444
+      - name: gdrive-tmp
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gd-cli
+  namespace: gd-cli
+spec:
+  selector:
+    app: gd-cli
+  ports:
+  - port: 3000
+    targetPort: 3000
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: gd-cli
+  namespace: gd-cli
+spec:
+  entryPoints:
+  - websecure
+  routes:
+  - match: Host(`books.minhnguyenle.net`)
+    kind: Rule
+    services:
+    - name: gd-cli
+      port: 3000

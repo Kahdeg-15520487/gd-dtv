@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GDrive Search</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #0d1117; color: #c9d1d9; min-height: 100vh;
+  }
+  header {
+    background: #161b22; border-bottom: 1px solid #30363d;
+    padding: 16px 24px; display: flex; align-items: center; gap: 16px;
+    position: sticky; top: 0; z-index: 10;
+  }
+  header h1 { font-size: 18px; font-weight: 600; color: #f0f6fc; white-space: nowrap; }
+  .search-wrap {
+    flex: 1; display: flex; gap: 8px; max-width: 640px;
+  }
+  .search-wrap input {
+    width: 100%; padding: 10px 16px; font-size: 15px;
+    background: #0d1117; border: 1px solid #30363d; border-radius: 8px;
+    color: #f0f6fc; outline: none; transition: border-color .15s;
+  }
+  .search-wrap input:focus { border-color: #58a6ff; }
+  .search-wrap button {
+    padding: 10px 20px; font-size: 14px; font-weight: 600;
+    background: #238636; color: #fff; border: none; border-radius: 8px;
+    cursor: pointer; transition: background .15s; white-space: nowrap;
+  }
+  .search-wrap button:hover { background: #2ea043; }
+  .search-wrap button:disabled { background: #21262d; color: #484f58; cursor: default; }
+  .search-wrap input::placeholder { color: #484f58; }
+  .stats {
+    font-size: 13px; color: #8b949e; white-space: nowrap;
+    margin-left: auto; display: flex; align-items: center; gap: 12px;
+  }
+  .stats .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .dot.on { background: #3fb950; }
+  .dot.off { background: #f85149; }
+
+  main { max-width: 960px; margin: 0 auto; padding: 20px 24px; }
+  .empty {
+    text-align: center; padding: 80px 20px; color: #484f58;
+  }
+  .empty .icon { font-size: 48px; margin-bottom: 12px; }
+  .empty p { font-size: 15px; }
+
+  .result-list { list-style: none; }
+  .result-item {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 12px 16px; border-bottom: 1px solid #21262d;
+    cursor: pointer; transition: background .1s;
+  }
+  .result-item:hover { background: #161b22; }
+  .result-item.selected { background: #1f2a37; }
+  .result-item .check {
+    width: 18px; height: 18px; border: 2px solid #30363d; border-radius: 4px;
+    flex-shrink: 0; margin-top: 2px; display: flex; align-items: center; justify-content: center;
+    transition: all .15s;
+  }
+  .result-item.selected .check { background: #58a6ff; border-color: #58a6ff; }
+  .result-item.selected .check::after { content: '✓'; font-size: 11px; color: #fff; font-weight: bold; }
+  .result-info { flex: 1; min-width: 0; }
+  .result-name { font-size: 14px; color: #f0f6fc; word-break: break-all; }
+  .result-path { font-size: 12px; color: #8b949e; margin-top: 2px; word-break: break-all; }
+  .result-id { font-size: 11px; color: #484f58; margin-top: 1px; }
+  .result-score { font-size: 11px; color: #58a6ff; flex-shrink: 0; margin-top: 2px; }
+  .result-meta { font-size: 11px; color: #484f58; margin-top: 2px; display: flex; gap: 8px; }
+  .format-bar {
+    display: flex; gap: 6px; flex-wrap: wrap; padding: 8px 0; margin-bottom: 12px;
+    border-bottom: 1px solid #21262d;
+  }
+  .format-chip {
+    padding: 4px 10px; border: 1px solid #30363d; border-radius: 12px;
+    font-size: 12px; color: #8b949e; cursor: pointer; transition: all .15s;
+    user-select: none;
+  }
+  .format-chip:hover { border-color: #58a6ff; color: #c9d1d9; }
+  .format-chip.active { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+  .dl-btn {
+    position: fixed; bottom: 24px; right: 24px;
+    background: #238636; color: #fff; border: none; padding: 12px 24px;
+    border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4); transition: background .15s;
+    display: none;
+  }
+  .dl-btn:hover { background: #2ea043; }
+  .dl-btn:disabled { background: #21262d; color: #484f58; cursor: default; }
+  .dl-btn.show { display: block; }
+  .dl-count { position: absolute; top: -8px; right: -8px;
+    background: #f85149; color: #fff; font-size: 11px; font-weight: bold;
+    width: 20px; height: 20px; border-radius: 50%; display: flex;
+    align-items: center; justify-content: center; }
+
+  .toast {
+    position: fixed; top: 72px; right: 24px; background: #238636; color: #fff;
+    padding: 10px 20px; border-radius: 8px; font-size: 13px; z-index: 100;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    animation: slideIn .2s ease, fadeOut .3s ease 2.5s forwards;
+  }
+  @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } }
+  @keyframes fadeOut { to { opacity: 0; transform: translateY(-8px); } }
+
+  .loading { text-align: center; padding: 40px; color: #8b949e; }
+  .spinner {
+    display: inline-block; width: 24px; height: 24px;
+    border: 3px solid #30363d; border-top-color: #58a6ff;
+    border-radius: 50%; animation: spin .6s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>GDrive</h1>
+  <div class="search-wrap">
+    <input type="text" id="search" placeholder="Search files... (press Enter or click Search)" autofocus>
+    <button id="searchBtn">Search</button>
+  </div>
+  <div class="stats">
+    <span id="dbStatus"><span class="dot off"></span></span>
+    <span id="fileCount">--</span>
+  </div>
+</header>
+
+<main>
+  <div class="empty" id="emptyState">
+    <div class="icon">🔍</div>
+    <p>Type to search 293,668 files</p>
+  </div>
+  <ul class="result-list" id="results" style="display:none"></ul>
+  <div class="loading" id="loading" style="display:none">
+    <div class="spinner"></div>
+  </div>
+</main>
+
+<button class="dl-btn" id="dlBtn" onclick="downloadSelected()">
+  Download
+  <span class="dl-count" id="dlCount">0</span>
+</button>
+
+<script>
+let currentResults = [];
+let selected = new Set();
+let searchTimer = null;
+let abortController = null;
+
+const $search = document.getElementById('search');
+const $results = document.getElementById('results');
+const $empty = document.getElementById('emptyState');
+const $loading = document.getElementById('loading');
+const $dlBtn = document.getElementById('dlBtn');
+const $dlCount = document.getElementById('dlCount');
+const $dbStatus = document.getElementById('dbStatus');
+const $fileCount = document.getElementById('fileCount');
+
+// Search on Enter key or button click (NOT on every keystroke)
+$search.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') doSearchNow();
+});
+document.getElementById('searchBtn').addEventListener('click', () => doSearchNow());
+
+function doSearchNow() {
+  const q = $search.value.trim();
+  if (!q) {
+    $results.innerHTML = '';
+    $results.style.display = 'none';
+    $empty.style.display = '';
+    $dlBtn.classList.remove('show');
+    currentResults = [];
+    selected.clear();
+    return;
+  }
+  // Cancel any in-flight request
+  if (abortController) abortController.abort();
+  doSearch(q);
+}
+
+async function doSearch(q) {
+  $loading.style.display = '';
+  $results.style.display = 'none';
+  $empty.style.display = 'none';
+  $dlBtn.classList.remove('show');
+  selected.clear();
+  
+  // Track this request for cancellation
+  abortController = new AbortController();
+
+  try {
+    const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&limit=50`, { signal: abortController.signal });
+    const data = await res.json();
+    currentResults = data.results || [];
+    renderResults();
+  } catch (err) {
+    $results.innerHTML = '<li class="empty"><p>Search failed</p></li>';
+    $results.style.display = '';
+  }
+  $loading.style.display = 'none';
+}
+
+function renderResults() {
+  $results.innerHTML = '';
+  if (currentResults.length === 0) {
+    $empty.innerHTML = '<div class="icon">😕</div><p>No files found</p>';
+    $empty.style.display = '';
+    $results.style.display = 'none';
+    return;
+  }
+  $empty.style.display = 'none';
+  $results.style.display = '';
+
+  currentResults.forEach((f, i) => {
+    const li = document.createElement('li');
+    li.className = 'result-item';
+    li.innerHTML = `
+      <div class="check"></div>
+      <div class="result-info">
+        <div class="result-name">${esc(f.filename)}</div>
+        <div class="result-path">${esc(f.fullPath)}</div>
+        <div class="result-id">ID: ${f.id}</div>
+      </div>
+      <div class="result-meta">
+        <span>${f.extension ? f.extension.toUpperCase() : '?'}</span>
+        ${f.size ? '<span>' + fmtSize(f.size) + '</span>' : ''}
+        <span>#${f.id}</span>
+      </div>
+      <div class="result-score">${f.score.toFixed(2)}</div>
+    `;
+    li.addEventListener('click', (e) => {
+      // Allow text selection
+      if (window.getSelection()?.toString()) return;
+      toggleItem(i, li);
+    });
+    $results.appendChild(li);
+  });
+}
+
+function toggleItem(i, el) {
+  if (selected.has(i)) {
+    selected.delete(i);
+    el.classList.remove('selected');
+  } else {
+    selected.add(i);
+    el.classList.add('selected');
+  }
+  updateDlBtn();
+}
+
+function updateDlBtn() {
+  const n = selected.size;
+  $dlCount.textContent = n;
+  if (n > 0) $dlBtn.classList.add('show');
+  else $dlBtn.classList.remove('show');
+}
+
+async function downloadSelected() {
+  if (selected.size === 0) return;
+  $dlBtn.disabled = true;
+  $dlBtn.textContent = 'Downloading...';
+
+  const ids = [...selected].map(i => currentResults[i].id);
+  let done = 0;
+  for (const id of ids) {
+    // Trigger browser download by navigating to the download URL
+    const a = document.createElement('a');
+    a.href = `/api/download?id=${id}`;
+    a.download = '';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    done++;
+    // Small delay between downloads to avoid overwhelming the server
+    if (ids.length > 1) await sleep(500);
+  }
+  toast(`${done}/${ids.length} download(s) started`);
+  $dlBtn.disabled = false;
+  $dlBtn.textContent = 'Download';
+  selected.clear();
+  updateDlBtn();
+  document.querySelectorAll('.result-item').forEach(el => el.classList.remove('selected'));
+}
+
+async function checkStatus() {
+  try {
+    const res = await fetch('/api/status');
+    const data = await res.json();
+    if (data.connected) {
+      $dbStatus.innerHTML = '<span class="dot on"></span> Connected';
+      $fileCount.textContent = data.totalFiles.toLocaleString() + ' files';
+    } else {
+      $dbStatus.innerHTML = '<span class="dot off"></span> DB offline';
+    }
+  } catch {
+    $dbStatus.innerHTML = '<span class="dot off"></span> Offline';
+  }
+}
+
+function fmtSize(bytes) {
+  if (!bytes) return '';
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+  if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + ' MB';
+  return (bytes / 1073741824).toFixed(1) + ' GB';
+}
+
+function esc(s) {
+  const el = document.createElement('span');
+  el.textContent = s;
+  return el.innerHTML;
+}
+
+function toast(msg) {
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3000);
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// Init
+checkStatus();
+setInterval(checkStatus, 30000);
+</script>
+</body>
+</html>

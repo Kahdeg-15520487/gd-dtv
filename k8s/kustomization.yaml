@@ -1,0 +1,8 @@
+# Google Drive archive — web search + OPDS catalog
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: gd-cli
+
+resources:
+- gd-cli.yaml
