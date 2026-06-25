@@ -16,6 +16,6 @@ jobs:
       - name: Login to ghcr
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
       - name: Build
-        run: docker build -t ghcr.io/${{ github.repository }}:latest -t ghcr.io/${{ github.repository }}:${{ github.sha }} .
+        run: docker build -t ghcr.io/kahdeg-15520487/gd-dtv:latest -t ghcr.io/kahdeg-15520487/gd-dtv:${{ github.sha }} .
       - name: Push
-        run: docker push ghcr.io/${{ github.repository }}:latest && docker push ghcr.io/${{ github.repository }}:${{ github.sha }}
+        run: docker push ghcr.io/kahdeg-15520487/gd-dtv:latest && docker push ghcr.io/kahdeg-15520487/gd-dtv:${{ github.sha }}
