@@ -12,6 +12,7 @@ WORKDIR /app
 COPY --from=build /app/package.json /app/package-lock.json ./
 RUN npm ci --omit=dev
 COPY --from=build /app/dist ./dist
+COPY --from=build /app/src/web/public ./dist/web/public
 ENV PORT=3000
 USER node
 EXPOSE 3000
