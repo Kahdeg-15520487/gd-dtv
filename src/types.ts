@@ -14,6 +14,8 @@ export interface GDriveConfig {
   maxConcurrency: number;
   lastChangeToken: string;
   db: DbConfig;
+  /** Only import/sync files whose full path starts with one of these prefixes */
+  includePaths?: string[];
 }
 
 export interface DriveFolder {

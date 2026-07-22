@@ -2,7 +2,7 @@ import { execFileSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { loadConfig, updateConfig } from '../config';
+import { loadConfig, updateConfig, matchesIncludePath } from '../config';
 import { createPool, closePool } from '../db/client';
 import { truncateFiles } from '../db/schema';
 import { bulkInsertFiles, upsertFolders, countFiles, countDirs } from '../db/queries';
@@ -151,7 +151,11 @@ export async function importCommand(): Promise<void> {
 
   // Step 3: Insert files into drive_files table
   console.log('\nInserting files into database...');
+  if (config.includePaths && config.includePaths.length > 0) {
+    console.log('  Filter: only files matching includePaths (' + config.includePaths.length + ' prefixes)');
+  }
   let inserted = 0;
+  let skipped = 0;
   const entries: DriveEntry[] = [];
   const seenFileIds = new Set<string>();
 
@@ -159,9 +163,15 @@ export async function importCommand(): Promise<void> {
     if (seenFileIds.has(f.ID)) continue;
     seenFileIds.add(f.ID);
 
+    const fullPath = '/' + f.Path;
+    if (!matchesIncludePath(fullPath, config.includePaths)) {
+      skipped++;
+      continue;
+    }
+
     entries.push({
       filename: f.Name,
-      fullPath: '/' + f.Path,
+      fullPath,
       isDir: false,
       fileId: f.ID,
       size: f.Size,
@@ -178,7 +188,7 @@ export async function importCommand(): Promise<void> {
   if (entries.length > 0) {
     inserted += await bulkInsertFiles(entries);
   }
-  console.log(`\r  Progress: 100% (${inserted.toLocaleString()} inserted)...`);
+  console.log(`\r  Progress: 100% (${inserted.toLocaleString()} inserted${skipped > 0 ? ', ' + skipped.toLocaleString() + ' skipped' : ''})...`);
   console.log();
 
   // Step 4: Get and save start page token for future sync

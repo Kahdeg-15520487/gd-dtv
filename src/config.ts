@@ -3,6 +3,11 @@ import * as path from 'path';
 import * as os from 'os';
 import { GDriveConfig, DbConfig } from './types';
 
+export function matchesIncludePath(fullPath: string, includePaths?: string[]): boolean {
+  if (!includePaths || includePaths.length === 0) return true;
+  return includePaths.some(p => fullPath.startsWith(p));
+}
+
 const CONFIG_DIR = path.join(os.homedir(), '.gdrive-cli');
 const CONFIG_PATH = path.join(CONFIG_DIR, 'config.json');
 
@@ -40,6 +45,10 @@ export function loadConfig(): GDriveConfig {
     ...parsed,
     db: { ...DEFAULT_CONFIG.db, ...(parsed.db || {}) },
   };
+  // Allow env var override for includePaths (comma-separated)
+  if (process.env.SYNC_INCLUDE_PATHS) {
+    merged.includePaths = process.env.SYNC_INCLUDE_PATHS.split(',').map(s => s.trim()).filter(Boolean);
+  }
   return merged;
 }
 

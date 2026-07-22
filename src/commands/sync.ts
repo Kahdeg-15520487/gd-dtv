@@ -1,4 +1,4 @@
-import { loadConfig, updateConfig } from '../config';
+import { loadConfig, updateConfig, matchesIncludePath } from '../config';
 import { createPool, closePool } from '../db/client';
 import { upsertFile, deleteFileByFileId, upsertFolders, resolveFolderPath, countFiles, countDirs } from '../db/queries';
 import { getAccessToken, listChanges } from '../sync/drive-api';
@@ -65,9 +65,14 @@ export async function syncCommand(): Promise<void> {
 
   console.log(`\nProcessing ${changes.length} change(s)...`);
 
+  if (config.includePaths && config.includePaths.length > 0) {
+    console.log(`  Filter: only files matching ${config.includePaths.length} includePaths prefixes`);
+  }
+
   let added = 0;
   let updated = 0;
   let deleted = 0;
+  let skipped = 0;
   let folderUpdates = 0;
 
   for (let i = 0; i < changes.length; i++) {
@@ -95,6 +100,12 @@ export async function syncCommand(): Promise<void> {
         fullPath = '/' + change.name;
       }
 
+      // Apply includePaths filter (skip files not matching any prefix)
+      if (!matchesIncludePath(fullPath, config.includePaths)) {
+        skipped++;
+        continue;
+      }
+
       const fileSize = change.size ? parseInt(change.size, 10) : undefined;
       const fileMtime = change.modifiedTime || undefined;
       await upsertFile(change.fileId, change.name, fullPath, false, fileSize, fileMtime);
@@ -118,6 +129,7 @@ export async function syncCommand(): Promise<void> {
   console.log('\nSync complete!');
   console.log(`  Added/Updated: ${added} file(s)`);
   console.log(`  Deleted:       ${deleted} file(s)`);
+  if (skipped > 0) console.log(`  Skipped:       ${skipped} file(s) (not in includePaths)`);
   console.log(`  Folders:       ${folderUpdates} updated`);
   console.log(`  Total files:   ${totalFiles.toLocaleString()}`);
   console.log(`  Total dirs:    ${totalDirs.toLocaleString()}`);
