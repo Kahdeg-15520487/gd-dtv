@@ -48,6 +48,8 @@ spec:
             secretKeyRef:
               name: postgres-secret
               key: password
+        - name: SYNC_INCLUDE_PATHS
+          value: "/Văn Học Phương Đông,/eBook Phương Đông,/eBooks Phương Đông,/Phương Đông,/eBook Phương Tây,/Đào Tiểu Vũ,/Đam Mỹ,/Ngôn Tình,/Tiên Hiệp,/Huyền Ảo,/Kiếm Hiệp,/Sắc Hiệp,/Đô Thị,/Tiểu thuyết,/Trọng Sinh,/Xuyên Không,/Võng Du,/Vô Hạn,/Truyện Dịch,/AI Dịch,/AI-Dich,/truyện tiên hiệp,/truyen chu,/ebook_folder,/Sach Suu Tam,/Truyện AI,/Bách Hợp,/Văn Học Phương Tây,/Văn học Phương Tây,/Dị năng,/Quan Trường,/Võ Hiệp,/Linh dị,/Mạt Thế,/Cổ Long,/Kim Dung,/Tà Đạo,/Tu Chân,/Tu Tiên,/Ebooks Tong Hop,/10k ePub"
         resources:
           requests:
             cpu: 10m
